@@ -1,6 +1,7 @@
 const db = require("../models");
 const bcrypt = require('bcrypt');
-const generateJWT = require('../utils/jwt');
+const { generateJWT } = require('../utils/jwt');
+const { downloadResource } = require('../utils/utility')
 const constants = require('../config/constants')
 const User = db.Users;
 const Op = db.Sequelize.Op;
@@ -13,6 +14,15 @@ module.exports = {
         if (!req.body.password) throw new Error("密码不能为空!")
 
         try {
+            const existUser = await User.findOne({
+                where: {
+                    phone: req.body.phone
+                }
+            })
+            if (existUser) {
+                throw new Error("手机号码已注册!")
+            }
+
             // Save User in the database
             const user = await User.create({
                 avatar: 'default.jpg',
@@ -22,10 +32,10 @@ module.exports = {
                 status: constants.user.status.active,
                 role: 999
             })
-            if (user.dataValues.password)
-                delete user.dataValues.password
+            delete user.password
+
             user.accessToken = await generateJWT(user)
-            res.status(201).json({ user })
+            res.status(201).json(user)
 
         } catch (err) {
             res.status(422).json({
@@ -54,7 +64,7 @@ module.exports = {
             if (user.password)
                 delete user.password
             user.accessToken = await generateJWT(user)
-            res.status(200).json({ user })
+            res.status(200).json(user)
 
         } catch (err) {
             res.status(422).json({
@@ -65,7 +75,7 @@ module.exports = {
     async getCurrent(req, res) {
         try {
             const user = req.user
-            res.status(200).json({ user })
+            res.status(200).json(user)
 
         } catch (err) {
             res.status(500).json({
@@ -77,77 +87,103 @@ module.exports = {
         const terms = req.query.terms;
         const condition = terms ? { name: { [Op.like]: `%${terms}%` } } : null;
 
-        User.findAll({ where: condition })
-            .then(data => {
-                res.send(data);
-            })
-            .catch(err => {
-                res.status(500).send({
-                    message:
-                        err.message || "Some error occurred while retrieving tutorials."
-                });
-            });
+        const users = await User.findAll({ where: condition })
+        res.status(200).json(users)
+
     },
     async findOne(req, res) {
         const id = req.params.id;
-        User.findByPk(id)
-            .then(data => {
-                if (data) {
-                    res.send(data);
-                } else {
-                    res.status(404).send({
-                        message: `未找到用户id=${id}.`
-                    });
-                }
-            })
-            .catch(err => {
-                res.status(500).send({
-                    message: "Error retrieving Tutorial with id=" + id
-                });
-            });
+        const user = await User.findByPk(id)
+        res.status(200).json(user)
     },
     async update(req, res) {
         const id = req.params.id;
-        User.update(req.body, {
-            where: { id: id }
-        })
-            .then(num => {
-                if (num == 1) {
-                    res.send({
-                        message: "Tutorial was updated successfully."
-                    });
-                } else {
-                    res.send({
-                        message: `Cannot update Tutorial with id=${id}. Maybe Tutorial was not found or req.body is empty!`
-                    });
-                }
-            })
-            .catch(err => {
-                res.status(500).send({
-                    message: "Error updating Tutorial with id=" + id
-                });
-            })
+        await User.update({ name: req.body.name }, { where: { id: id } })
+        res.status(200).json({ success: true })
     },
     async delete(req, res) {
         const id = req.params.id;
-        User.destroy({
-            where: { id: id }
-        })
-            .then(num => {
-                if (num == 1) {
-                    res.send({
-                        message: "Tutorial was deleted successfully!"
-                    });
-                } else {
-                    res.send({
-                        message: `Cannot delete Tutorial with id=${id}. Maybe Tutorial was not found!`
-                    });
+        await User.destroy({ where: { id: id } })
+        res.status(200).json({ success: true })
+    },
+
+    async uploadAvatar(req, res) {
+
+    },
+
+    async import(req, res) {
+        const files = req.files
+        let totalCount = 0
+        let successCount = 0
+        let errorCount = 0
+        let ignoreCount = 0
+        const details = await Promise.all(
+            files.map(async (file) => {
+                const fileContents = Buffer.from(file.buffer)
+                const lines = fileContents.toString().split('\n')
+                if (lines.length < 2) {
+                    return
                 }
+                return await Promise.all(
+                    lines.map(async line => {
+                        totalCount += 1
+                        if (!line.length || line === 'name,phone,password') {
+                            ignoreCount += 1
+                            return { line: line, status: 'Ignored' }
+                        }
+                        const data = line.toString().split(',')
+                        if (data.length < 3) {
+                            ignoreCount += 1
+                            return { line: line, status: 'Ignored' }
+                        }
+                        try {
+                            const name = data[0].trim()
+                            const phone = data[1].trim()
+                            const password = data[2].trim()
+
+                            const existUser = await User.findOne({
+                                where: {
+                                    phone: phone
+                                }
+                            })
+                            if (existUser) {
+                                ignoreCount += 1
+                                return { line: line, status: '手机号码已注册。', phone }
+                            }
+
+                            const user = await User.create({
+                                avatar: 'default.jpg',
+                                name: name,
+                                phone: phone,
+                                password: await bcrypt.hash(password, 10),
+                                status: constants.user.status.active,
+                                role: 0
+                            })
+                            successCount += 1
+
+                            return { line: line, status: '导入成功。', email: email, code: codeRes.code }
+                        } catch (e) {
+                            errorCount += 1
+                            return { line: line, status: 'Error', error: e }
+                        }
+                    })
+                )
             })
-            .catch(err => {
-                res.status(500).send({
-                    message: "Could not delete Tutorial with id=" + id
-                });
-            });
+        )
+        const data = { totalCount, successCount, errorCount, ignoreCount, details }
+
+        return res.json(data)
+    },
+    async export(req, res) {
+        const users = await User.findAll()
+        const fields = [
+            { label: 'Id', value: 'id' },
+            { label: 'Name', value: 'name' },
+            { label: 'Phone', value: 'phone' },
+            { label: 'Status', value: 'status' },
+            { label: 'Role', value: 'role' },
+            { label: 'CreatedAt', value: 'createdAt' }
+        ]
+        return downloadResource(res, 'users.csv', fields, users)
     },
 }

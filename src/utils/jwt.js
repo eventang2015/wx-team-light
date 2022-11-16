@@ -1,3 +1,4 @@
+const jwt = require('jsonwebtoken')
 const JWT_SECRET = process.env.JWT_SECRET || 'wx:miniprogram-team-light:passport';
 
 module.exports.generateJWT = async (user) => {

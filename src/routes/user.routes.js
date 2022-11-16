@@ -2,6 +2,8 @@ const asyncHandler = require('express-async-handler')
 const passport = require('passport')
 const requireAuth = passport.authenticate('jwt', { session: false })
 const role = require('../config/role');
+const multer = require('multer')
+const upload = multer({ inMemory: true });
 
 module.exports = app => {
     const users = require("../controllers/user.controller.js");
@@ -22,13 +24,19 @@ module.exports = app => {
     router.get("/:id", asyncHandler(users.findOne));
 
     // Update a User with id
-    router.put("/:id", asyncHandler(users.update));
+    router.put("/:id", requireAuth, asyncHandler(users.update));
 
     // Delete a User with id
     router.delete("/:id", requireAuth, role.requireAdmin(), asyncHandler(users.delete));
 
-    // // Delete all Tutorials
-    // router.delete("/", tutorials.deleteAll);
+    // upload avatar
+    router.put('/avatar', requireAuth, asyncHandler(users.uploadAvatar))
+
+    // Import Users
+    router.post('/import', requireAuth, upload.any(), asyncHandler(users.import))
+
+    // Export Users
+    router.get('/export', requireAuth, asyncHandler(users.export))
 
     app.use('/api/users', router);
 };
