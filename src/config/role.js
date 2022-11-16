@@ -1,7 +1,5 @@
-var db = require('../config/db');
 const _ = require("lodash");
 const constants = require('../server/constants');
-const config = require('../config/config')
 
 var role = {
     admin: { name: 'admin', id: 999 },
@@ -43,22 +41,12 @@ function can(role, operation) {
 
 function userCan(operation) {
     return [function (req, res, next) {
-
-        if (operation === constants.operations.API_DOCUMENTATION) {
-            if (config.APPLICATION_OPENAPI_DOCS_ENABLED) {
-                return next()
-            }
-            else {
-                return res.sendStatus(401);
-            }
-        }
-
         const userRole = req.user.role;
 
-        if ((userRole === roles.user.id || userRole === roles.token_admin.id)
-            && (operation === constants.operations.USERS_DETAIL && req.user.key === req.params.key)) {
-            return next()
-        }
+        // if ((userRole === roles.user.id || userRole === roles.token_admin.id)
+        //     && (operation === constants.operations.USERS_DETAIL && req.user.key === req.params.key)) {
+        //     return next()
+        // }
 
         if (can(userRole, operation)) {
             return next()
