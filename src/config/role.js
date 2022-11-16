@@ -1,7 +1,7 @@
 const _ = require("lodash");
-const constants = require('../server/constants');
+const constants = require('./constants');
 
-var role = {
+const role = {
     admin: { name: 'admin', id: 999 },
     user: { name: 'user', id: 0 },
     manager: { name: 'merchant', id: 1 },
