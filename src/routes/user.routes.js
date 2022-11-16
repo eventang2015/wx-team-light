@@ -33,10 +33,10 @@ module.exports = app => {
     router.put('/avatar', requireAuth, asyncHandler(users.uploadAvatar))
 
     // Import Users
-    router.post('/import', requireAuth, upload.any(), asyncHandler(users.import))
+    router.post('/list/import', requireAuth, upload.any(), asyncHandler(users.import))
 
     // Export Users
-    router.get('/export', requireAuth, asyncHandler(users.export))
+    router.get('/list/export', requireAuth, asyncHandler(users.export))
 
     app.use('/api/users', router);
 };
