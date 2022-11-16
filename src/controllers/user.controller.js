@@ -127,7 +127,7 @@ module.exports = {
         const details = await Promise.all(
             files.map(async (file) => {
                 const fileContents = Buffer.from(file.buffer)
-                const lines = fileContents.toString().split('\n')
+                const lines = fileContents.toString().split('\r\n')
                 if (lines.length < 2) {
                     return
                 }
@@ -171,7 +171,7 @@ module.exports = {
                             return { line: line, status: '导入成功。', email: email, code: codeRes.code }
                         } catch (e) {
                             errorCount += 1
-                            return { line: line, status: 'Error', error: e }
+                            return { line: line, status: '发生错误', error: e }
                         }
                     })
                 )
