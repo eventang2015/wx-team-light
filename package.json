@@ -4,16 +4,20 @@
   "description": "微信云托管 express 框架模版",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node src/app.js"
   },
   "author": "",
   "license": "Apache-2.0",
   "dependencies": {
+    "bcrypt": "^5.1.0",
     "cors": "^2.8.5",
     "express": "^4.16.4",
     "express-async-handler": "^1.2.0",
+    "jsonwebtoken": "^8.5.1",
     "morgan": "^1.10.0",
     "mysql2": "^2.3.2",
+    "passport": "^0.6.0",
+    "passport-jwt": "^4.0.0",
     "sequelize": "^6.8.0"
   },
   "engines": {

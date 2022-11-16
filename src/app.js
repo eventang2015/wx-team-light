@@ -2,6 +2,9 @@ const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
 const logger = morgan("tiny");
+const passport = require('passport')
+
+const { notFound, errorHandler } = require('./config/errorHandler')
 
 const app = express();
 app.use(express.urlencoded({ extended: false }));
@@ -9,15 +12,8 @@ app.use(express.json());
 app.use(cors());
 app.use(logger);
 
-const db = require("./server/models");
-
-db.sequelize.sync()
-  .then(() => {
-    console.log("Synced db.");
-  })
-  .catch((err) => {
-    console.log("Failed to sync db: " + err.message);
-  });
+require('./config/passport')(app)
+app.use(passport.initialize())
 
 app.get("/", async (req, res) => {
   res.json({ message: "Welcome to Team Light application." });
@@ -31,11 +27,17 @@ app.get("/api/wx_openid", async (req, res) => {
   }
 });
 
-require("./server/routes/user.routes")(app);
+require("./routes/user.routes")(app);
+
+app.use(notFound)
+app.use(errorHandler)
 
 const port = process.env.PORT || 80;
 
 async function bootstrap() {
+  const db = require("./models");
+  await db.sequelize.sync();
+
   app.listen(port, () => {
     console.log("启动成功", port);
   });
