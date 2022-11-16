@@ -20,62 +20,68 @@ module.exports = {
                 }
             })
             if (existUser) {
-                throw new Error("手机号码已注册!")
+                throw new Error("手机号码已注册！")
             }
 
             // Save User in the database
             const user = await User.create({
                 avatar: 'default.jpg',
-                name: req.body.name,
-                phone: req.body.phone,
-                password: await bcrypt.hash(req.body.password, 10),
+                name: req.body.name.trim(),
+                phone: req.body.phone.trim(),
+                password: await bcrypt.hash(req.body.password.trim(), 10),
                 status: constants.user.status.active,
                 role: 999
             })
-            delete user.password
 
-            user.accessToken = await generateJWT(user)
-            res.status(201).json(user)
+            if (user) {
+                if (user.dataValues.password)
+                    delete user.dataValues.password
+                user.dataValues.accessToken = await generateJWT(user)
+                res.status(201).json(user)
+            } else {
+                res.status(400).json({ message: '注册失败！' })
+            }
 
         } catch (err) {
-            res.status(422).json({
-                message: err.message || "创建用户时发生错误."
-            })
+            res.status(422).json({ message: err.message || "创建用户时发生错误。" })
         }
     },
     async signin(req, res) {
         // Validate request
-        if (!req.body.phone) throw new Error("手机号码不能为空!")
-        if (!req.body.password) throw new Error("密码不能为空!")
+        if (!req.body.phone) throw new Error("手机号码不能为空！")
+        if (!req.body.password) throw new Error("密码不能为空！")
 
         try {
-            const user = await User.findByPk(req.body.phone)
+            const user = await User.findOne({
+                where: {
+                    phone: req.body.phone.trim()
+                }
+            })
 
             if (!user) {
                 res.status(401)
-                throw new Error('没有此手机号码的用户')
+                throw new Error('没有此手机号码的用户！')
             }
-            const passwordMatch = await bcrypt.compare(req.body.password, user.password)
+            const passwordMatch = await bcrypt.compare(req.body.password.trim(), user.password)
             if (!passwordMatch) {
                 res.status(401)
                 throw new Error('手机号或密码错误！')
             }
 
-            if (user.password)
-                delete user.password
-            user.accessToken = await generateJWT(user)
-            res.status(200).json(user)
+            delete user.dataValues.password
+            user.dataValues.accessToken = await generateJWT(user)
+            res.json(user)
 
         } catch (err) {
             res.status(422).json({
-                message: err.message || "用户登录时发生错误."
+                message: err.message || "用户登录时发生错误。"
             })
         }
     },
     async getCurrent(req, res) {
         try {
             const user = req.user
-            res.status(200).json(user)
+            res.json(user)
 
         } catch (err) {
             res.status(500).json({
@@ -87,24 +93,25 @@ module.exports = {
         const terms = req.query.terms;
         const condition = terms ? { name: { [Op.like]: `%${terms}%` } } : null;
 
-        const users = await User.findAll({ where: condition })
-        res.status(200).json(users)
+        const users = await User.findAll({ attributes: { exclude: ['password'] }, where: condition })
+        res.json(users)
 
     },
     async findOne(req, res) {
         const id = req.params.id;
         const user = await User.findByPk(id)
-        res.status(200).json(user)
+        delete user.dataValues.password
+        res.json(user)
     },
     async update(req, res) {
         const id = req.params.id;
         await User.update({ name: req.body.name }, { where: { id: id } })
-        res.status(200).json({ success: true })
+        res.json({ success: true })
     },
     async delete(req, res) {
         const id = req.params.id;
         await User.destroy({ where: { id: id } })
-        res.status(200).json({ success: true })
+        res.json({ success: true })
     },
 
     async uploadAvatar(req, res) {
@@ -175,7 +182,7 @@ module.exports = {
         return res.json(data)
     },
     async export(req, res) {
-        const users = await User.findAll()
+        const users = await User.findAll({ attributes: { exclude: ['password'] } })
         const fields = [
             { label: 'Id', value: 'id' },
             { label: 'Name', value: 'name' },

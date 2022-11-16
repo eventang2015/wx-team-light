@@ -21,7 +21,7 @@ module.exports = function () {
                     if (user.status === 'suspend') {
                         return done(null, false);
                     }
-                    delete user.password
+                    delete user.dataValues.password
                     return done(null, user);
                 }
             }).catch(error => {
