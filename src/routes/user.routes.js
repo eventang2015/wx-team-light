@@ -23,7 +23,7 @@ module.exports = app => {
     router.get('/list/export', requireAuth, asyncHandler(users.export))
 
     router.get("/:id/teams", asyncHandler(users.getUserTeams));
-    router.get("/:id/teams/:teamId/tasks", asyncHandler(users.getUserTasks));
+    router.get("/:id/tasks", asyncHandler(users.getUserTasks));
 
     app.use('/api/users', router);
 };

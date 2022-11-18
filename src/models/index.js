@@ -4,16 +4,16 @@ const { MYSQL_USERNAME, MYSQL_PASSWORD, MYSQL_ADDRESS = "" } = process.env;
 
 const [host, port] = MYSQL_ADDRESS.split(":");
 
-// const sequelize = new Sequelize("team_light", MYSQL_USERNAME, MYSQL_PASSWORD, {
-//   host,
-//   port,
-//   dialect: "mysql",
-// });
-const sequelize = new Sequelize("team_light", 'root', 'Test123!', {
-  host: 'localhost',
-  port: '3306',
+const sequelize = new Sequelize("team_light", MYSQL_USERNAME, MYSQL_PASSWORD, {
+  host,
+  port,
   dialect: "mysql",
 });
+// const sequelize = new Sequelize("team_light", 'root', 'Test123!', {
+//   host: 'localhost',
+//   port: '3306',
+//   dialect: "mysql",
+// });
 
 const db = {};
 

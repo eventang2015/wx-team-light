@@ -8,7 +8,7 @@ const Op = db.Sequelize.Op;
 module.exports = {
     async createTask(req, res) {
         let { teamId, name, description, tags, userId, color } = req.body
-        if (!teamId) throw new Error("团队不能为空！")
+        if (!teamId) throw new Error("未选择工作组！")
         if (!name) throw new Error("任务名称不能为空！")
         const creatorId = req.user.id
         const editorId = creatorId
@@ -25,7 +25,7 @@ module.exports = {
                 creatorId, editorId
             })
             return res.json(task)
-        } catch (e) {
+        } catch (err) {
             res.status(400).json({ message: err.message || "创建任务失败！" })
         }
     },
@@ -51,12 +51,12 @@ module.exports = {
             const items = await Task.findAll({
                 where: condition,
                 order: [['id', 'DESC']],
-                limit: parseInt(limit),
+                limit: parseInt(pagesize),
                 offset: parseInt(offset),
             })
             const result = toPagingData(total, pageindex, pagesize, items)
             return res.json(result)
-        } catch (e) {
+        } catch (err) {
             res.status(400).json({ message: err.message || "检索任务列表发生错误！" })
         }
     },
@@ -75,7 +75,7 @@ module.exports = {
     async updateTask(req, res) {
         const id = req.params.id
         let { name, description, tags, userId, color } = req.body
-        if (!teamId) throw new Error("团队不能为空！")
+        
         if (!name) throw new Error("任务名称不能为空！")
 
         try {
@@ -92,7 +92,7 @@ module.exports = {
     async deleteTask(req, res) {
         const id = req.params.id
         try {
-            await Task.destory({ where: { id: id } });
+            await Task.destroy({ where: { id: id } });
             return res.json({ success: true })
         } catch (err) {
             return res.status(400).json({ message: err.message || "删除任务时发生错误！" })

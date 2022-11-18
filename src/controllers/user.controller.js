@@ -274,7 +274,7 @@ module.exports = {
             const teamUsers = await TeamUser.findAll({ where: { userId: id }, })
             const teamIds = teamUsers.map(i => i.teamId)
             const teams = await Team.findAll({
-                where: { teamId: { [Op.in]: teamIds } },
+                where: { id: { [Op.in]: teamIds } },
             })
             res.json(teams)
         } catch (err) {
@@ -296,9 +296,6 @@ module.exports = {
             if (teamid) {
                 condition.teamId = parseInt(teamid)
             }
-            if (userid) {
-                condition.userId = parseInt(userid)
-            }
             if (status) {
                 condition.status = status
             }
@@ -307,12 +304,12 @@ module.exports = {
             const items = await Task.findAll({
                 where: condition,
                 order: [['id', 'DESC']],
-                limit: parseInt(limit),
+                limit: parseInt(pagesize),
                 offset: parseInt(offset),
             })
             const result = toPagingData(total, pageindex, pagesize, items)
             return res.json(result)
-        } catch (e) {
+        } catch (err) {
             res.status(400).json({ message: err.message || "检索任务列表发生错误！" })
         }
     },
