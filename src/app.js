@@ -28,16 +28,19 @@ app.get("/api/wx_openid", async (req, res) => {
 });
 
 require("./routes/user.routes")(app);
+require("./routes/team.routes")(app);
+require("./routes/task.routes")(app);
 
 app.use(notFound)
 app.use(errorHandler)
 
-const port = process.env.PORT || 80;
+// const port = process.env.PORT || 3000; // local
+const port = process.env.PORT || 80; // prod
 
 async function bootstrap() {
   const db = require("./models");
-  await db.sequelize.sync();
-
+  await db.sequelize.sync({ force: true }); // drop and resync db
+  // await db.sequelize.sync();
   app.listen(port, () => {
     console.log("启动成功", port);
   });

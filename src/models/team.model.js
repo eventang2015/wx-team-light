@@ -5,12 +5,7 @@ module.exports = (sequelize) => {
             type: DataTypes.STRING
         },
         description: {
-            type: DataTypes.STRING,
-            allowNull: true
-        },
-        //负责人编号
-        managerIds: {
-            type: DataTypes.INTEGER,
+            type: DataTypes.TEXT,
             allowNull: true
         },
         tags: {
@@ -19,6 +14,14 @@ module.exports = (sequelize) => {
         },
         color: {
             type: DataTypes.STRING,
+            allowNull: true
+        },
+        creatorId: {
+            type: DataTypes.INTEGER,
+            allowNull: true
+        },
+        editorId: {
+            type: DataTypes.INTEGER,
             allowNull: true
         },
     });

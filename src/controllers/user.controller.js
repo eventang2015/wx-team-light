@@ -1,9 +1,13 @@
 const db = require("../models");
 const bcrypt = require('bcrypt');
 const { generateJWT } = require('../utils/jwt');
-const { downloadResource } = require('../utils/utility')
-const constants = require('../config/constants')
+const { downloadResource, toPagingData, getWxOpenId } = require('../utils/utility')
+const constants = require('../config/constants');
+const role = require("../config/role");
 const User = db.Users;
+const TeamUser = db.TeamUsers;
+const Task = db.Tasks;
+const Team = db.Teams;
 const Op = db.Sequelize.Op;
 
 module.exports = {
@@ -12,41 +16,41 @@ module.exports = {
         if (!req.body.phone) throw new Error("手机号码不能为空!")
         if (!req.body.name) throw new Error("姓名不能为空!")
         if (!req.body.password) throw new Error("密码不能为空!")
+        const openId = await getWxOpenId(req)
 
         try {
             const existUser = await User.findOne({
-                where: {
-                    phone: req.body.phone
-                }
+                where: { phone: req.body.phone }
             })
             if (existUser) {
                 throw new Error("手机号码已注册！")
             }
 
-            // Save User in the database
             const user = await User.create({
                 avatar: 'default.jpg',
                 name: req.body.name.trim(),
                 phone: req.body.phone.trim(),
                 password: await bcrypt.hash(req.body.password.trim(), 10),
                 status: constants.user.status.active,
-                role: 999
+                role: 999,
+                openId
             })
 
             if (user) {
                 if (user.dataValues.password)
                     delete user.dataValues.password
                 user.dataValues.accessToken = await generateJWT(user)
-                res.status(201).json(user)
+                return res.status(200).json(user)
             } else {
-                res.status(400).json({ message: '注册失败！' })
+                return res.status(400).json({ message: '注册失败！' })
             }
 
         } catch (err) {
-            res.status(422).json({ message: err.message || "创建用户时发生错误。" })
+            return res.status(422).json({ message: err.message || "创建用户时出错。" })
         }
     },
     async signin(req, res) {
+        const openId = await getWxOpenId(req)
         // Validate request
         if (!req.body.phone) throw new Error("手机号码不能为空！")
         if (!req.body.password) throw new Error("密码不能为空！")
@@ -67,55 +71,125 @@ module.exports = {
                 res.status(401)
                 throw new Error('手机号或密码错误！')
             }
-
+            await user.update({ openId, updatedAt: new Date() })
             delete user.dataValues.password
             user.dataValues.accessToken = await generateJWT(user)
-            res.json(user)
+            return res.json(user)
 
         } catch (err) {
-            res.status(422).json({
-                message: err.message || "用户登录时发生错误。"
-            })
+            const status = res.statusCode ? res.statusCode : 500
+            return res.status(status).json({ message: err.message || "用户登录时发生错误。" })
         }
     },
     async getCurrent(req, res) {
         try {
             const user = req.user
-            res.json(user)
+            return res.json(user)
 
         } catch (err) {
-            res.status(500).json({
+            return res.status(500).json({
                 message: err.message || "Access Token not Found"
             })
         }
     },
     async findAll(req, res) {
-        const terms = req.query.terms;
-        const condition = terms ? { name: { [Op.like]: `%${terms}%` } } : null;
+        const { terms, pagesize = 20, pageindex = 1 } = req.query;
+        try {
+            const offset = pagesize * (pageindex * 1 - 1)
+            let condition = null
+            if (terms) {
+                condition = { [Op.or]: [{ name: { [Op.like]: `%${terms}%` } }, { phone: { [Op.like]: `%${terms}%` } }] }
+            }
 
-        const users = await User.findAll({ attributes: { exclude: ['password'] }, where: condition })
-        res.json(users)
+            const total = await User.count({ where: condition })
+            const items = await User.findAll({
+                attributes: { exclude: ['password'] },
+                where: condition,
+                limit: parseInt(pagesize),
+                offset: parseInt(offset),
+            })
 
+            const result = toPagingData(total, pageindex, pagesize, items)
+            return res.json(result)
+        } catch (err) {
+            return res.status(400).json({ message: err.message || "检索用户列表发生错误！" })
+        }
     },
     async findOne(req, res) {
         const id = req.params.id;
-        const user = await User.findByPk(id)
-        delete user.dataValues.password
-        res.json(user)
+        try {
+            const user = await User.findByPk(id)
+            if (!user) {
+                res.status(404).send({ message: `未找到用户id=${id}.` });
+            }
+            delete user.dataValues.password
+            return res.json(user)
+        } catch (err) {
+            return res.status(500).json({ message: "检索用户时出错id=" + id })
+        }
     },
-    async update(req, res) {
+    async updateProfile(req, res) {
         const id = req.params.id;
-        await User.update({ name: req.body.name }, { where: { id: id } })
-        res.json({ success: true })
+        if (!req.body.phone) throw new Error("手机号码不能为空!")
+        if (!req.body.name) throw new Error("姓名不能为空!")
+
+        if (!role.isAdmin(req.user.role) && req.user.id !== id) {
+            throw new Error("未授权!")
+        }
+        try {
+            const name = req.body.name.trim()
+            const phone = req.body.phone.trim()
+            const user = await User.findByPk(id)
+            if (!user) {
+                throw new Error("不存在此用户!")
+            }
+            if (user.phone !== phone) {
+                const existUser = await User.findOne({
+                    where: { phone: phone }
+                })
+                if (existUser) {
+                    throw new Error("手机号码已注册！")
+                }
+            }
+            const updatedUser = await user.update({ name: name, phone: phone, updatedAt: new Date() })
+            delete updatedUser.dataValues.password
+            return res.json(updatedUser)
+        } catch (err) {
+            return res.status(400).json({ message: err.message || "更新用户信息时发生错误。" })
+        }
+
     },
     async delete(req, res) {
         const id = req.params.id;
-        await User.destroy({ where: { id: id } })
-        res.json({ success: true })
-    },
+        try {
+            await User.destroy({ where: { id: id } })
+            return res.json({ success: true })
+        } catch (err) {
+            return res.status(400).json({ message: err.message || "删除用户时发生错误。" })
+        }
 
+    },
     async uploadAvatar(req, res) {
 
+    },
+
+    async updatePassword(req, res) {
+        if (!req.body.password) throw new Error("密码不能为空！")
+        const id = req.params.id;
+        if (!role.isAdmin(req.user.role) && req.user.id !== id) {
+            throw new Error("未授权!")
+        }
+        try {
+            const user = await User.findByPk(id)
+            if (!user) {
+                throw new Error("不存在此用户!")
+            }
+            const password = await bcrypt.hash(req.body.password.trim(), 10)
+            await user.update({ password, updatedAt: new Date() })
+            return res.json({ success: true })
+        } catch (err) {
+            return res.status(400).json({ message: err.message || "更新用户密码时发生错误。" })
+        }
     },
 
     async import(req, res) {
@@ -168,10 +242,10 @@ module.exports = {
                             })
                             successCount += 1
 
-                            return { line: line, status: '导入成功。', email: email, code: codeRes.code }
+                            return { line: line, status: '导入成功。' }
                         } catch (e) {
                             errorCount += 1
-                            return { line: line, status: '发生错误', error: e }
+                            return { line: line, status: '发生错误', error: e.message }
                         }
                     })
                 )
@@ -184,13 +258,62 @@ module.exports = {
     async export(req, res) {
         const users = await User.findAll({ attributes: { exclude: ['password'] } })
         const fields = [
-            { label: 'Id', value: 'id' },
-            { label: 'Name', value: 'name' },
-            { label: 'Phone', value: 'phone' },
-            { label: 'Status', value: 'status' },
-            { label: 'Role', value: 'role' },
-            { label: 'CreatedAt', value: 'createdAt' }
+            { label: '编号', value: 'id' },
+            { label: '姓名', value: 'name' },
+            { label: '手机号码', value: 'phone' },
+            { label: '状态', value: 'status' },
+            { label: '角色', value: 'role' },
+            { label: '注册时间', value: 'createdAt' }
         ]
         return downloadResource(res, 'users.csv', fields, users)
+    },
+
+    async getUserTeams(req, res) {
+        const id = req.params.id;
+        try {
+            const teamUsers = await TeamUser.findAll({ where: { userId: id }, })
+            const teamIds = teamUsers.map(i => i.teamId)
+            const teams = await Team.findAll({
+                where: { teamId: { [Op.in]: teamIds } },
+            })
+            res.json(teams)
+        } catch (err) {
+            return res.status(500).json({ message: "检索用户所在工作组时出错id=" + id })
+        }
+    },
+
+    async getUserTasks(req, res) {
+        const id = req.params.id;
+        try {
+            const { terms, teamid, status, pagesize = 20, pageindex = 1 } = req.query;
+            const offset = pagesize * (pageindex * 1 - 1)
+            let condition = {
+                userId: id
+            }
+            if (terms) {
+                condition.name = { [Op.like]: `%${name}%` }
+            }
+            if (teamid) {
+                condition.teamId = parseInt(teamid)
+            }
+            if (userid) {
+                condition.userId = parseInt(userid)
+            }
+            if (status) {
+                condition.status = status
+            }
+
+            const total = await Task.count({ where: condition })
+            const items = await Task.findAll({
+                where: condition,
+                order: [['id', 'DESC']],
+                limit: parseInt(limit),
+                offset: parseInt(offset),
+            })
+            const result = toPagingData(total, pageindex, pagesize, items)
+            return res.json(result)
+        } catch (e) {
+            res.status(400).json({ message: err.message || "检索任务列表发生错误！" })
+        }
     },
 }

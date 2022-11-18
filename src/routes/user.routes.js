@@ -10,33 +10,20 @@ module.exports = app => {
 
     const router = require("express").Router();
 
-    // Register a new user
     router.post("/signup", asyncHandler(users.signup));
     router.post("/signin", asyncHandler(users.signin));
     router.get('/current', requireAuth, asyncHandler(users.getCurrent))
-    // Retrieve all users
     router.get("/", asyncHandler(users.findAll));
-
-    // // Retrieve all published Tutorials
-    // router.get("/published", tutorials.findAllPublished);
-
-    // Retrieve a single User with id
     router.get("/:id", asyncHandler(users.findOne));
-
-    // Update a User with id
-    router.put("/:id", requireAuth, asyncHandler(users.update));
-
-    // Delete a User with id
+    router.put("/:id", requireAuth, asyncHandler(users.updateProfile));
     router.delete("/:id", requireAuth, role.requireAdmin(), asyncHandler(users.delete));
-
-    // upload avatar
-    router.put('/avatar', requireAuth, asyncHandler(users.uploadAvatar))
-
-    // Import Users
+    router.put('/avatar', requireAuth, upload.any(), asyncHandler(users.uploadAvatar))
+    router.put('/:id/password', requireAuth, asyncHandler(users.updatePassword))
     router.post('/list/import', requireAuth, upload.any(), asyncHandler(users.import))
-
-    // Export Users
     router.get('/list/export', requireAuth, asyncHandler(users.export))
+
+    router.get("/:id/teams", asyncHandler(users.getUserTeams));
+    router.get("/:id/teams/:teamId/tasks", asyncHandler(users.getUserTasks));
 
     app.use('/api/users', router);
 };

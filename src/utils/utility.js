@@ -7,3 +7,12 @@ module.exports.downloadResource = async (res, fileName, fields, data) => {
     res.attachment(fileName)
     return res.send(csv)
 }
+module.exports.getWxOpenId = async (req) => {
+    let openId = req.headers["x-wx-source"]
+    return openId
+}
+module.exports.toPagingData = (total_count, pageindex, pagesize, data) => {
+    const has_next_page = total_count > pagesize * pageindex
+    const total_pages = Math.ceil(total_count / pagesize)
+    return { total_count, total_pages, has_next_page, current_page: pageindex, item_count: data.length, items: data }
+}
